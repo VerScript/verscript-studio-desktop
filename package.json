@@ -1,0 +1,43 @@
+{
+  "name": "verscript-studio-desktop",
+  "productName": "VerScript Studio",
+  "version": "1.0.0",
+  "description": "Official Standalone Offline Desktop IDE for the VerScript Language",
+  "main": "electron/main.cjs",
+  "author": "VerScript Core Team",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "electron .",
+    "app": "vite build && electron .",
+    "dist": "vite build && electron-builder --win portable"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "monaco-editor": "^0.57.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^34.3.0",
+    "electron-builder": "^25.1.8",
+    "vite": "^8.3.4"
+  },
+  "build": {
+    "appId": "org.verscript.studio",
+    "productName": "VerScript Studio",
+    "win": {
+      "target": ["portable", "zip"]
+    },
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "resources/**/*"
+    ]
+  }
+}
