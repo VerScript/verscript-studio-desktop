@@ -623,3 +623,163 @@ body, html {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* Theme Palettes */
+.studio-container.theme-monokai {
+  --bg-primary: #19181a;
+  --bg-secondary: #221f22;
+  --bg-tertiary: #2d2a2e;
+  --bg-panel: #221f22;
+  --bg-card: #2d2a2e;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --text-main: #fcfcfa;
+  --text-muted: #939293;
+  --accent-cyan: #78dce8;
+  --accent-blue: #78dce8;
+  --accent-green: #a9dc76;
+  --accent-yellow: #ffd866;
+  --accent-red: #ff6188;
+  --accent-purple: #ab9df2;
+}
+
+.studio-container.theme-matrix {
+  --bg-primary: #020804;
+  --bg-secondary: #051408;
+  --bg-tertiary: #08210d;
+  --bg-panel: #041207;
+  --bg-card: #08260f;
+  --border-color: rgba(0, 255, 102, 0.15);
+  --text-main: #e2ffe8;
+  --text-muted: #5bb36b;
+  --accent-cyan: #00ff66;
+  --accent-blue: #00ffaa;
+  --accent-green: #00ff66;
+  --accent-yellow: #a6ff00;
+  --accent-red: #ff3344;
+  --accent-purple: #39ff14;
+}
+
+/* Theme Select */
+.theme-select {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+.theme-select option {
+  background: #0f1420;
+  color: #fff;
+}
+
+/* Dock Filter & Tool Buttons */
+.dock-filter-input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  outline: none;
+  width: 110px;
+  transition: width 0.2s ease;
+}
+.dock-filter-input:focus {
+  width: 170px;
+  border-color: var(--accent-cyan);
+}
+
+.dock-tool-btn {
+  padding: 2px 8px !important;
+  font-size: 11px !important;
+}
+
+/* Snippets Modal */
+.snippets-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.snippets-modal-content {
+  width: 640px;
+  max-width: 90vw;
+  max-height: 80vh;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 30px rgba(0, 229, 255, 0.15);
+  overflow: hidden;
+}
+
+.snippets-modal-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.snippets-list-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.snippet-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  transition: all 0.15s ease;
+}
+.snippet-card:hover {
+  border-color: rgba(0, 229, 255, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.snippet-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.snippet-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 229, 255, 0.12);
+  color: var(--accent-cyan);
+}
+
+.snippet-preview {
+  background: #080a10;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  color: #94a3b8;
+  max-height: 90px;
+  overflow-y: auto;
+}
+

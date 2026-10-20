@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { registerVerScriptLanguage } from './verscript-language.js';
+import AnsiView, { stripAnsi } from './AnsiView.jsx';
+import { SNIPPETS_LIBRARY } from './snippetsData.js';
 
 const TEMPLATES = {
   starter: `! VerScript Studio - Standalone Offline Desktop IDE
@@ -80,17 +82,40 @@ display identity
 };
 
 export default function App() {
-  const [tabs, setTabs] = useState([
-    { id: '1', title: 'main.vrs', content: TEMPLATES.starter, path: null, modified: false }
-  ]);
-  const [activeTabId, setActiveTabId] = useState('1');
+  // 1. Workspace Persistence Initializer
+  const [tabs, setTabs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vrs_studio_tabs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [{ id: '1', title: 'main.vrs', content: TEMPLATES.starter, path: null, modified: false }];
+  });
+
+  const [activeTabId, setActiveTabId] = useState(() => {
+    try {
+      const savedId = localStorage.getItem('vrs_studio_active_tab');
+      if (savedId) return savedId;
+    } catch (e) {}
+    return '1';
+  });
+
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('vrs_studio_theme') || 'cyber';
+  });
+
   const [symbols, setSymbols] = useState([]);
   const [sidebarTab, setSidebarTab] = useState('symbols'); // 'symbols' | 'files'
   const [fontSize, setFontSize] = useState(14);
+  const [isSnippetsOpen, setIsSnippetsOpen] = useState(false);
+  const [snippetsFilter, setSnippetsFilter] = useState('');
 
   // Runner & Dock State
   const [dockTab, setDockTab] = useState('repl'); // 'repl' | 'runner' | 'installer'
   const [cliArgs, setCliArgs] = useState('');
+  const [termFilter, setTermFilter] = useState('');
   const [runLogs, setRunLogs] = useState('');
   const [replLogs, setReplLogs] = useState('');
   const [installLogs, setInstallLogs] = useState('');
@@ -121,12 +146,22 @@ export default function App() {
   ]);
 
   const editorRef = useRef(null);
+  const monacoRef = useRef(null);
   const runOutputRef = useRef(null);
   const replOutputRef = useRef(null);
 
   const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0];
 
-  // 1. Initial System Check & Event Listeners
+  // Persist Workspace on Change
+  useEffect(() => {
+    try {
+      localStorage.setItem('vrs_studio_tabs', JSON.stringify(tabs));
+      localStorage.setItem('vrs_studio_active_tab', activeTabId);
+      localStorage.setItem('vrs_studio_theme', theme);
+    } catch (e) {}
+  }, [tabs, activeTabId, theme]);
+
+  // Initial System Check & Event Listeners
   useEffect(() => {
     checkBinary();
     checkConnectivity();
@@ -156,6 +191,36 @@ export default function App() {
 
     return () => clearInterval(onlineInterval);
   }, []);
+
+  // Global Keyboard Shortcuts (F5, Ctrl+S, Ctrl+N, Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // F5 or Ctrl+Enter -> Run
+      if (e.key === 'F5' || (e.ctrlKey && e.key === 'Enter')) {
+        e.preventDefault();
+        handleRunCode();
+      }
+      // Ctrl+S -> Save
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        handleSaveFile();
+      }
+      // Ctrl+N -> New File
+      if (e.ctrlKey && e.key === 'n') {
+        e.preventDefault();
+        handleNewFile('starter');
+      }
+      // Ctrl+K -> Clear active console
+      if (e.ctrlKey && e.key === 'k') {
+        e.preventDefault();
+        if (dockTab === 'runner') setRunLogs('');
+        if (dockTab === 'repl') setReplLogs('');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab, cliArgs, dockTab]);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -212,6 +277,7 @@ export default function App() {
 
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
+    monacoRef.current = monaco;
     registerVerScriptLanguage(monaco);
     monaco.editor.setTheme('vs-dark');
   };
@@ -359,6 +425,40 @@ export default function App() {
     await window.electronAPI.startRepl();
   };
 
+  const handleCopyCleanOutput = () => {
+    const raw = dockTab === 'repl' ? replLogs : runLogs;
+    const clean = stripAnsi(raw);
+    navigator.clipboard.writeText(clean);
+  };
+
+  const handleExportLog = () => {
+    const raw = dockTab === 'repl' ? replLogs : runLogs;
+    const clean = stripAnsi(raw);
+    const blob = new Blob([clean], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `verscript_${dockTab}_${Date.now()}.log`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleInsertSnippet = (code) => {
+    if (editorRef.current) {
+      const position = editorRef.current.getPosition();
+      editorRef.current.executeEdits('insert-snippet', [
+        {
+          range: new monacoRef.current.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+          text: code + '\n'
+        }
+      ]);
+      editorRef.current.focus();
+    } else {
+      updateContent(activeTab.content + '\n' + code);
+    }
+    setIsSnippetsOpen(false);
+  };
+
   const handleAskVSSharp = async (promptOverride = null) => {
     const q = promptOverride || vsSharpQuery;
     if (!q.trim() || vsSharpLoading) return;
@@ -395,8 +495,14 @@ export default function App() {
     }
   };
 
+  const filteredSnippets = SNIPPETS_LIBRARY.filter(s => 
+    s.title.toLowerCase().includes(snippetsFilter.toLowerCase()) ||
+    s.category.toLowerCase().includes(snippetsFilter.toLowerCase()) ||
+    s.description.toLowerCase().includes(snippetsFilter.toLowerCase())
+  );
+
   return (
-    <div className="studio-container">
+    <div className={`studio-container theme-${theme}`}>
       {/* 1. Header Toolbar */}
       <header className="studio-header">
         <div className="brand-section">
@@ -440,8 +546,25 @@ export default function App() {
           <button className="btn btn-secondary" onClick={handleSaveFile}>
             Save {activeTab?.modified ? '•' : ''}
           </button>
+
+          {/* Snippets Palette Toggle */}
+          <button className="btn btn-secondary" onClick={() => setIsSnippetsOpen(!isSnippetsOpen)}>
+            🧩 Snippets
+          </button>
           
           <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />
+
+          {/* Theme Selector */}
+          <select 
+            className="theme-select" 
+            value={theme} 
+            onChange={(e) => setTheme(e.target.value)}
+            title="Theme Palette"
+          >
+            <option value="cyber">🌌 Cyber Dark</option>
+            <option value="monokai">🎨 Monokai Pro</option>
+            <option value="matrix">🟩 Matrix Emerald</option>
+          </select>
 
           {/* Font Zoom Controls */}
           <button className="btn btn-secondary" style={{ padding: '6px 8px' }} onClick={() => setFontSize(f => Math.max(10, f - 1))}>A-</button>
@@ -452,7 +575,9 @@ export default function App() {
           {isRunning ? (
             <button className="btn btn-danger" onClick={handleKillRun}>⏹ Stop</button>
           ) : (
-            <button className="btn btn-success" onClick={handleRunCode}>▶ Run File</button>
+            <button className="btn btn-success" onClick={handleRunCode} title="Run active script (F5 or Ctrl+Enter)">
+              ▶ Run File
+            </button>
           )}
 
           <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />
@@ -615,35 +740,54 @@ export default function App() {
                 </div>
               )}
 
-              {dockTab === 'repl' && (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => handleSendRepl(null, 'vars')}>
-                    vars
-                  </button>
-                  <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => handleSendRepl(null, 'help')}>
-                    help
-                  </button>
-                  <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11 }} onClick={handleRestartRepl}>
-                    Restart
-                  </button>
-                  <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => setReplLogs('')}>
+              {/* Right dock actions */}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                {/* Search / Filter Output */}
+                <input 
+                  type="text" 
+                  className="dock-filter-input" 
+                  placeholder="Filter logs..." 
+                  value={termFilter}
+                  onChange={(e) => setTermFilter(e.target.value)}
+                />
+
+                <button className="btn btn-secondary dock-tool-btn" onClick={handleCopyCleanOutput} title="Copy clean output without ANSI codes">
+                  📋 Copy
+                </button>
+                <button className="btn btn-secondary dock-tool-btn" onClick={handleExportLog} title="Export log as text file">
+                  💾 Export
+                </button>
+
+                {dockTab === 'repl' && (
+                  <>
+                    <button className="btn btn-secondary dock-tool-btn" onClick={() => handleSendRepl(null, 'vars')}>
+                      vars
+                    </button>
+                    <button className="btn btn-secondary dock-tool-btn" onClick={() => handleSendRepl(null, 'help')}>
+                      help
+                    </button>
+                    <button className="btn btn-secondary dock-tool-btn" onClick={handleRestartRepl}>
+                      Restart
+                    </button>
+                    <button className="btn btn-secondary dock-tool-btn" onClick={() => setReplLogs('')}>
+                      Clear
+                    </button>
+                  </>
+                )}
+
+                {dockTab === 'runner' && (
+                  <button className="btn btn-secondary dock-tool-btn" onClick={() => setRunLogs('')}>
                     Clear
                   </button>
-                </div>
-              )}
-
-              {dockTab === 'runner' && (
-                <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => setRunLogs('')}>
-                  Clear
-                </button>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Dock Content: Tab 1 REPL */}
             {dockTab === 'repl' && (
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
                 <div className="terminal-viewport" ref={replOutputRef}>
-                  {replLogs || 'Starting VerScript Interactive Shell...\n'}
+                  <AnsiView text={replLogs || 'Starting VerScript Interactive Shell...\n'} filter={termFilter} />
                 </div>
                 <form className="terminal-input-bar" onSubmit={handleSendRepl}>
                   <span className="terminal-prompt-prefix">&gt;&gt;&gt;</span>
@@ -678,7 +822,7 @@ export default function App() {
                 </div>
 
                 <div className="terminal-viewport" ref={runOutputRef}>
-                  {runLogs || 'Press [▶ Run File] in the top toolbar to execute the currently active file.'}
+                  <AnsiView text={runLogs || 'Press [▶ Run File] in the top toolbar to execute the currently active file.'} filter={termFilter} />
                 </div>
 
                 <form className="terminal-input-bar" onSubmit={handleSendStdin}>
@@ -701,7 +845,7 @@ export default function App() {
             {dockTab === 'installer' && (
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
                 <div className="terminal-viewport">
-                  {installLogs || 'No installer logs. If VerScript is missing, click [Auto-Install VerScript] in the toolbar.'}
+                  <AnsiView text={installLogs || 'No installer logs. If VerScript is missing, click [Auto-Install VerScript] in the toolbar.'} />
                 </div>
               </div>
             )}
@@ -798,6 +942,51 @@ export default function App() {
           </aside>
         )}
       </div>
+
+      {/* Snippets Palette Modal */}
+      {isSnippetsOpen && (
+        <div className="snippets-modal-backdrop" onClick={() => setIsSnippetsOpen(false)}>
+          <div className="snippets-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="snippets-modal-header">
+              <div>
+                <h3 style={{ fontSize: 15, fontWeight: 800 }}>🧩 VerScript Snippets Palette</h3>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Click to insert at cursor into active document</p>
+              </div>
+              <button className="btn btn-secondary" style={{ padding: '2px 8px' }} onClick={() => setIsSnippetsOpen(false)}>✕</button>
+            </div>
+
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)' }}>
+              <input 
+                type="text" 
+                className="dock-filter-input" 
+                style={{ width: '100%', padding: '6px 10px', fontSize: 12 }}
+                placeholder="Search snippets (e.g. Watchdog, Concurrency, Interop)..." 
+                value={snippetsFilter}
+                onChange={(e) => setSnippetsFilter(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            <div className="snippets-list-container">
+              {filteredSnippets.map((snip, idx) => (
+                <div key={idx} className="snippet-card">
+                  <div className="snippet-card-header">
+                    <div>
+                      <span className="snippet-badge">{snip.category}</span>
+                      <strong style={{ fontSize: 13, marginLeft: 8 }}>{snip.title}</strong>
+                    </div>
+                    <button className="btn btn-primary" style={{ padding: '3px 10px', fontSize: 11 }} onClick={() => handleInsertSnippet(snip.code)}>
+                      Insert
+                    </button>
+                  </div>
+                  <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '6px 0 8px' }}>{snip.description}</p>
+                  <pre className="snippet-preview">{snip.code.trim()}</pre>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
