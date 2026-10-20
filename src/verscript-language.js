@@ -9,8 +9,8 @@ export function registerVerScriptLanguage(monaco) {
   // 1. Language Configuration (Comments, brackets, auto-closing)
   monaco.languages.setLanguageConfiguration('verscript', {
     comments: {
-      lineComment: '//',
-      blockComment: ['/*', '*/'],
+      lineComment: '!',
+      blockComment: ['!!', '!!'],
     },
     brackets: [
       ['{', '}'],
@@ -129,9 +129,17 @@ export function registerVerScriptLanguage(monaco) {
 
       whitespace: [
         [/[ \t\r\n]+/, 'white'],
+        [/!!/, 'comment', '@commentVrs'],
+        [/![^!=].*$/, 'comment'],
         [/\/\*/, 'comment', '@comment'],
         [/\/\/.*$/, 'comment'],
         [/#.*$/, 'comment'],
+      ],
+
+      commentVrs: [
+        [/[^!]+/, 'comment'],
+        [/!!/, 'comment', '@pop'],
+        [/!/, 'comment']
       ],
 
       comment: [

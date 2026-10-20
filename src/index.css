@@ -487,3 +487,139 @@ body, html {
 .vssharp-textarea:focus {
   border-color: var(--accent-cyan);
 }
+
+/* Template Select */
+.template-dropdown-wrapper {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.template-select {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-sans);
+  padding: 6px 8px;
+  outline: none;
+  cursor: pointer;
+}
+.template-select option {
+  background: #0f1420;
+  color: #fff;
+}
+
+/* Sidebar Tab Header */
+.sidebar-tab-header {
+  display: flex;
+  background: #090c14;
+  border-bottom: 1px solid var(--border-color);
+}
+.sidebar-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sidebar-tab-btn.active {
+  color: var(--accent-cyan);
+  border-bottom: 2px solid var(--accent-cyan);
+  background: rgba(0, 229, 255, 0.05);
+}
+
+.active-file-item {
+  background: rgba(0, 229, 255, 0.1) !important;
+  color: var(--accent-cyan) !important;
+  font-weight: 600;
+}
+
+/* CLI Args Sub-bar */
+.cli-args-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0d121c;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+.cli-args-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 3px 8px;
+  outline: none;
+}
+.cli-args-input:focus {
+  border-color: var(--accent-cyan);
+}
+
+/* Metrics Pill */
+.metrics-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.exit-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+.exit-ok {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+.exit-err {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+.duration-badge {
+  color: var(--text-muted);
+}
+
+/* VS# Chips Row */
+.vssharp-chips-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.02);
+  overflow-x: auto;
+}
+.chip-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  border-radius: 12px;
+  padding: 3px 9px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.chip-btn:hover:not(:disabled) {
+  background: rgba(0, 229, 255, 0.15);
+  color: var(--accent-cyan);
+  border-color: rgba(0, 229, 255, 0.3);
+}
+.chip-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

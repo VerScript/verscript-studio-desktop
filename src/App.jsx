@@ -2,37 +2,95 @@ import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { registerVerScriptLanguage } from './verscript-language.js';
 
-const DEFAULT_SAMPLE_CODE = `// VerScript Studio - Offline Desktop IDE
-// Press [Run File] to execute, or test directly in the interactive REPL below!
+const TEMPLATES = {
+  starter: `! VerScript Studio - Standalone Offline Desktop IDE
+! Press [▶ Run File] or experiment live in the interactive REPL below!
 
-load Matrix;
-load Math;
+load Math
+load Matrix
 
-func greet(name: str):
-    display "Welcome to VerScript Studio, " + name + "!" ?color="cyan";
-    reply 0;
+func calculateArea(radius: num):
+    set area: PI * (radius ^ 2)
+    display "Calculated Circle Area: " + area ?color=green
+    reply area
 
-greet("Developer");
+calculateArea(5)
 
-// Matrix & Vector calculations
-val m = Matrix.identity(3);
-display "Identity Matrix (3x3):" ?color="green";
-display m;
+! Interactive prompt demonstration:
+prompt userName ?default="Explorer"
+display "Greetings, " + userName + "! Welcome to VerScript Studio." ?color=cyan
+`,
 
-// Interactive input sample:
-prompt userName ?default="Explorer";
-display "Greetings, " + userName + "! Try out the REPL dock below." ?color="yellow";
-`;
+  header: `! Interface Contract Specification Header
+pragma once
+pragma strict
+
+header StorageEngine:
+    func initialize(endpoint: str): bool
+    func writeBlock(blockId: str, data: str): bool
+    func readBlock(blockId: str): str
+    func close(): bool
+
+struct StorageConfig:
+    retries: num
+    timeoutMs: num
+    useCache: bool
+`,
+
+  oop: `! Object-Oriented Class Example in VerScript
+class Particle:
+    dynamic:
+        num x
+        num y
+        num velocity
+
+        def func constructor(startX: num, startY: num, speed: num):
+            set this.x: startX
+            set this.y: startY
+            set this.velocity: speed
+
+        def func move():
+            set this.x: this.x + this.velocity
+            set this.y: this.y + this.velocity
+            display "Particle at (" + this.x + ", " + this.y + ")" ?color=yellow
+
+inst p: Particle(0, 0, 1.5)
+p.move()
+p.move()
+`,
+
+  matrix: `! High-Performance Matrix Operations & Linear Algebra
+load Matrix
+
+set A: [[4, 7], [2, 6]]
+display "Matrix A:" ?color=cyan
+display A
+
+set detA: Matrix.det(A)
+display "Determinant: " + detA ?color=green
+
+set invA: Matrix.inverse(A)
+display "Inverse Matrix:" ?color=yellow
+display invA
+
+set identity: Matrix.identity(3)
+display "3x3 Identity Matrix:" ?color=purple
+display identity
+`
+};
 
 export default function App() {
   const [tabs, setTabs] = useState([
-    { id: '1', title: 'main.vrs', content: DEFAULT_SAMPLE_CODE, path: null, modified: false }
+    { id: '1', title: 'main.vrs', content: TEMPLATES.starter, path: null, modified: false }
   ]);
   const [activeTabId, setActiveTabId] = useState('1');
   const [symbols, setSymbols] = useState([]);
-  
-  // Dock State
+  const [sidebarTab, setSidebarTab] = useState('symbols'); // 'symbols' | 'files'
+  const [fontSize, setFontSize] = useState(14);
+
+  // Runner & Dock State
   const [dockTab, setDockTab] = useState('repl'); // 'repl' | 'runner' | 'installer'
+  const [cliArgs, setCliArgs] = useState('');
   const [runLogs, setRunLogs] = useState('');
   const [replLogs, setReplLogs] = useState('');
   const [installLogs, setInstallLogs] = useState('');
@@ -40,6 +98,10 @@ export default function App() {
   const [replInput, setReplInput] = useState('');
   const [replHistory, setReplHistory] = useState([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
+
+  // Performance & Status Metrics
+  const [lastRunDuration, setLastRunDuration] = useState(null);
+  const [lastExitCode, setLastExitCode] = useState(null);
 
   // Binary info
   const [binaryInfo, setBinaryInfo] = useState({ found: false, path: null, source: 'none', version: null });
@@ -71,7 +133,6 @@ export default function App() {
 
     const onlineInterval = setInterval(checkConnectivity, 8000);
 
-    // Electron API listeners
     if (window.electronAPI) {
       const unsubRun = window.electronAPI.onRunOutput((data) => {
         setRunLogs(prev => prev + data);
@@ -83,7 +144,6 @@ export default function App() {
         setInstallLogs(prev => prev + data);
       });
 
-      // Automatically launch REPL session on startup
       window.electronAPI.startRepl();
 
       return () => {
@@ -160,12 +220,14 @@ export default function App() {
     setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, content: val, modified: true } : t));
   };
 
-  const handleNewFile = () => {
+  const handleNewFile = (templateKey = 'starter') => {
     const newId = String(Date.now());
+    const isHdr = templateKey === 'header';
+    const filename = isHdr ? `contract_${tabs.length + 1}.h.vrs` : `script_${tabs.length + 1}.vrs`;
     const newTab = {
       id: newId,
-      title: `untitled_${tabs.length + 1}.vrs`,
-      content: '// New VerScript File\n',
+      title: filename,
+      content: TEMPLATES[templateKey] || '! New VerScript File\n',
       path: null,
       modified: false
     };
@@ -178,7 +240,6 @@ export default function App() {
     const file = await window.electronAPI.openFile();
     if (!file) return;
 
-    // Check if already open
     const existing = tabs.find(t => t.path === file.filePath);
     if (existing) {
       setActiveTabId(existing.id);
@@ -214,8 +275,16 @@ export default function App() {
     setDockTab('runner');
     setRunLogs('');
     setIsRunning(true);
-    await window.electronAPI.runCode({ code: activeTab.content });
+    setLastExitCode(null);
+    setLastRunDuration(null);
+
+    const startTime = performance.now();
+    const res = await window.electronAPI.runCode({ code: activeTab.content, args: cliArgs });
+    const elapsed = (performance.now() - startTime).toFixed(1);
+
     setIsRunning(false);
+    setLastRunDuration(elapsed);
+    setLastExitCode(res.exitCode !== undefined ? res.exitCode : (res.success ? 0 : 1));
   };
 
   const handleKillRun = async () => {
@@ -233,14 +302,14 @@ export default function App() {
     setStdinInput('');
   };
 
-  const handleSendRepl = async (e) => {
+  const handleSendRepl = async (e, directCmd = null) => {
     if (e) e.preventDefault();
-    if (!replInput.trim() || !window.electronAPI) return;
+    const cmd = directCmd || replInput;
+    if (!cmd.trim() || !window.electronAPI) return;
     
-    const cmd = replInput;
     setReplHistory(prev => [...prev, cmd]);
     setHistoryIdx(-1);
-    setReplInput('');
+    if (!directCmd) setReplInput('');
 
     if (cmd === 'clear') {
       setReplLogs('');
@@ -278,7 +347,7 @@ export default function App() {
     setDockTab('installer');
     setInstallLogs('[VerScript Studio] Downloading & running latest install.ps1 from official repo...\n');
     setIsInstalling(true);
-    const res = await window.electronAPI.installVerScript();
+    await window.electronAPI.installVerScript();
     setIsInstalling(false);
     await checkBinary();
   };
@@ -290,23 +359,22 @@ export default function App() {
     await window.electronAPI.startRepl();
   };
 
-  const handleAskVSSharp = async (e) => {
-    if (e) e.preventDefault();
-    if (!vsSharpQuery.trim() || vsSharpLoading) return;
+  const handleAskVSSharp = async (promptOverride = null) => {
+    const q = promptOverride || vsSharpQuery;
+    if (!q.trim() || vsSharpLoading) return;
 
     if (!isOnline) {
       setChatMessages(prev => [
         ...prev,
-        { sender: 'user', text: vsSharpQuery },
+        { sender: 'user', text: q },
         { sender: 'assistant', text: '⚠️ **Network Offline**: VS# AI Assistant requires an active internet connection to communicate with the neural backend. Please connect your computer to the internet.' }
       ]);
-      setVsSharpQuery('');
+      if (!promptOverride) setVsSharpQuery('');
       return;
     }
 
-    const q = vsSharpQuery;
     setChatMessages(prev => [...prev, { sender: 'user', text: q }]);
-    setVsSharpQuery('');
+    if (!promptOverride) setVsSharpQuery('');
     setVsSharpLoading(true);
 
     const res = await window.electronAPI.queryVSSharp({ prompt: q, code: activeTab.content });
@@ -347,12 +415,38 @@ export default function App() {
         </div>
 
         <div className="toolbar-actions">
-          <button className="btn btn-secondary" onClick={handleNewFile}>+ New</button>
+          {/* Template Dropdown */}
+          <div className="template-dropdown-wrapper">
+            <button className="btn btn-secondary" onClick={() => handleNewFile('starter')}>+ New File</button>
+            <select 
+              className="template-select" 
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleNewFile(e.target.value);
+                  e.target.value = '';
+                }
+              }}
+              defaultValue=""
+            >
+              <option value="" disabled>Templates ▾</option>
+              <option value="starter">Basic Script</option>
+              <option value="header">Header Contract (.h.vrs)</option>
+              <option value="oop">Object-Oriented Class</option>
+              <option value="matrix">Matrix & Linear Algebra</option>
+            </select>
+          </div>
+
           <button className="btn btn-secondary" onClick={handleOpenFile}>Open</button>
           <button className="btn btn-secondary" onClick={handleSaveFile}>
             Save {activeTab?.modified ? '•' : ''}
           </button>
           
+          <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />
+
+          {/* Font Zoom Controls */}
+          <button className="btn btn-secondary" style={{ padding: '6px 8px' }} onClick={() => setFontSize(f => Math.max(10, f - 1))}>A-</button>
+          <button className="btn btn-secondary" style={{ padding: '6px 8px' }} onClick={() => setFontSize(f => Math.min(26, f + 1))}>A+</button>
+
           <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />
 
           {isRunning ? (
@@ -378,28 +472,57 @@ export default function App() {
 
       {/* 2. Main Work Area (Dual-Deck) */}
       <div className="studio-body">
-        {/* Left: Outline & Symbols */}
+        {/* Left: Dual Sidebar (Outline & Symbols OR Files) */}
         <aside className="symbols-sidebar">
-          <div className="sidebar-header">
-            <span>Outline & Symbols</span>
-            <span style={{ fontSize: 10, color: 'var(--accent-cyan)' }}>{symbols.length}</span>
+          <div className="sidebar-tab-header">
+            <button 
+              className={`sidebar-tab-btn ${sidebarTab === 'symbols' ? 'active' : ''}`}
+              onClick={() => setSidebarTab('symbols')}
+            >
+              Symbols ({symbols.length})
+            </button>
+            <button 
+              className={`sidebar-tab-btn ${sidebarTab === 'files' ? 'active' : ''}`}
+              onClick={() => setSidebarTab('files')}
+            >
+              Files ({tabs.length})
+            </button>
           </div>
-          <div className="symbols-list">
-            {symbols.length === 0 ? (
-              <div style={{ padding: '12px 10px', fontSize: 11, color: 'var(--text-dim)' }}>
-                No functions or classes declared yet.
-              </div>
-            ) : (
-              symbols.map((sym, idx) => (
-                <div key={idx} className="symbol-item" onClick={() => jumpToLine(sym.line)}>
-                  <span className={`symbol-badge badge-${sym.type === 'func' ? 'fn' : sym.type === 'class' ? 'cls' : sym.type === 'header' ? 'hdr' : 'str'}`}>
-                    {sym.type.slice(0, 3).toUpperCase()}
-                  </span>
-                  <span>{sym.name}</span>
+
+          {sidebarTab === 'symbols' ? (
+            <div className="symbols-list">
+              {symbols.length === 0 ? (
+                <div style={{ padding: '14px 10px', fontSize: 11, color: 'var(--text-dim)', textAlign: 'center' }}>
+                  No functions, classes, or contracts declared in this file yet.
                 </div>
-              ))
-            )}
-          </div>
+              ) : (
+                symbols.map((sym, idx) => (
+                  <div key={idx} className="symbol-item" onClick={() => jumpToLine(sym.line)}>
+                    <span className={`symbol-badge badge-${sym.type === 'func' ? 'fn' : sym.type === 'class' ? 'cls' : sym.type === 'header' ? 'hdr' : 'str'}`}>
+                      {sym.type.slice(0, 3).toUpperCase()}
+                    </span>
+                    <span>{sym.name}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            <div className="symbols-list">
+              {tabs.map((tab) => (
+                <div 
+                  key={tab.id} 
+                  className={`symbol-item ${tab.id === activeTabId ? 'active-file-item' : ''}`}
+                  onClick={() => setActiveTabId(tab.id)}
+                >
+                  <span style={{ fontSize: 13 }}>📄</span>
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {tab.title}
+                  </span>
+                  {tab.modified && <span style={{ color: 'var(--accent-cyan)' }}>•</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </aside>
 
         {/* Center: Main Deck */}
@@ -442,7 +565,7 @@ export default function App() {
                 onChange={updateContent}
                 onMount={handleEditorDidMount}
                 options={{
-                  fontSize: 14,
+                  fontSize: fontSize,
                   fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                   fontLigatures: true,
                   minimap: { enabled: true },
@@ -480,12 +603,24 @@ export default function App() {
                 </button>
               </div>
 
+              {/* Execution Metrics Pill */}
+              {dockTab === 'runner' && lastExitCode !== null && (
+                <div className="metrics-pill">
+                  <span className={`exit-badge ${lastExitCode === 0 ? 'exit-ok' : 'exit-err'}`}>
+                    {lastExitCode === 0 ? '✓ Exited (0)' : `✕ Exited (${lastExitCode})`}
+                  </span>
+                  {lastRunDuration && (
+                    <span className="duration-badge">⏱ {lastRunDuration} ms</span>
+                  )}
+                </div>
+              )}
+
               {dockTab === 'repl' && (
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => handleSendRepl({ preventDefault: () => {} }, 'vars')}>
+                  <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => handleSendRepl(null, 'vars')}>
                     vars
                   </button>
-                  <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => handleSendRepl({ preventDefault: () => {} }, 'help')}>
+                  <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => handleSendRepl(null, 'help')}>
                     help
                   </button>
                   <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: 11 }} onClick={handleRestartRepl}>
@@ -530,9 +665,22 @@ export default function App() {
             {/* Dock Content: Tab 2 Runner */}
             {dockTab === 'runner' && (
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                {/* CLI Arguments Sub-bar */}
+                <div className="cli-args-bar">
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>CLI Args:</span>
+                  <input 
+                    type="text" 
+                    className="cli-args-input" 
+                    placeholder="Optional arguments passed to script (e.g. --verbose input.csv)" 
+                    value={cliArgs}
+                    onChange={(e) => setCliArgs(e.target.value)}
+                  />
+                </div>
+
                 <div className="terminal-viewport" ref={runOutputRef}>
                   {runLogs || 'Press [▶ Run File] in the top toolbar to execute the currently active file.'}
                 </div>
+
                 <form className="terminal-input-bar" onSubmit={handleSendStdin}>
                   <span className="terminal-prompt-prefix">stdin:</span>
                   <input
@@ -574,6 +722,31 @@ export default function App() {
               </span>
             </div>
 
+            {/* Quick Action Chips */}
+            <div className="vssharp-chips-row">
+              <button 
+                className="chip-btn" 
+                onClick={() => handleAskVSSharp("Explain what this VerScript code does step by step.")}
+                disabled={!isOnline || vsSharpLoading}
+              >
+                💡 Explain
+              </button>
+              <button 
+                className="chip-btn" 
+                onClick={() => handleAskVSSharp("Add explicit type annotations and contract constraints to this code.")}
+                disabled={!isOnline || vsSharpLoading}
+              >
+                🛡 Types
+              </button>
+              <button 
+                className="chip-btn" 
+                onClick={() => handleAskVSSharp("Generate unit test assertions using 'Assert' standard library for this code.")}
+                disabled={!isOnline || vsSharpLoading}
+              >
+                🧪 Tests
+              </button>
+            </div>
+
             <div className="vssharp-chat">
               {!isOnline && (
                 <div style={{
@@ -599,7 +772,7 @@ export default function App() {
               )}
             </div>
 
-            <form className="vssharp-input-area" onSubmit={handleAskVSSharp}>
+            <form className="vssharp-input-area" onSubmit={(e) => { e.preventDefault(); handleAskVSSharp(); }}>
               <textarea
                 className="vssharp-textarea"
                 placeholder={isOnline ? "Ask VS# about your VerScript code..." : "VS# is offline (Internet connection required)"}
