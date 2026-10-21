@@ -3,6 +3,7 @@ import Editor from '@monaco-editor/react';
 import { registerVerScriptLanguage } from './verscript-language.js';
 import AnsiView, { stripAnsi } from './AnsiView.jsx';
 import { SNIPPETS_LIBRARY } from './snippetsData.js';
+import VerScriptLogo from './VerScriptLogo.jsx';
 
 const TEMPLATES = {
   starter: `! VerScript Studio - Standalone Offline Desktop IDE
@@ -507,7 +508,7 @@ export default function App() {
       <header className="studio-header">
         <div className="brand-section">
           <div className="logo-badge">
-            <div className="logo-icon">V</div>
+            <VerScriptLogo width={26} height={26} />
             <span>VerScript Studio</span>
           </div>
           <span className="version-pill">
