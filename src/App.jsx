@@ -445,8 +445,8 @@ export default function App() {
 
   const handleSendRepl = async (e, directCmd = null) => {
     if (e) e.preventDefault();
-    const cmd = directCmd || replInput;
-    if (!cmd.trim() || !window.electronAPI) return;
+    const cmd = (directCmd || replInput).trim();
+    if (!cmd || !window.electronAPI) return;
     
     setReplHistory(prev => [...prev, cmd]);
     setHistoryIdx(-1);
@@ -454,6 +454,18 @@ export default function App() {
 
     if (cmd === 'clear') {
       setReplLogs('');
+      return;
+    }
+
+    if (cmd === 'verscript update' || cmd === 'update') {
+      setReplLogs(prev => prev + `\n> ${cmd}\n[VerScript Studio] Triggering live official update...\n`);
+      handleInstallVerScript();
+      return;
+    }
+
+    if (cmd === 'verscript help' || cmd === 'help') {
+      setIsHelpOpen(true);
+      setReplLogs(prev => prev + `\n> ${cmd}\n[Help] Opened Interactive Help Center modal.\n`);
       return;
     }
 

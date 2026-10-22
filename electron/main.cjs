@@ -195,6 +195,28 @@ ipcMain.handle('run-code', async (event, { code, args, customPath }) => {
     activeProcess = null;
   }
 
+  const trimmed = (code || '').trim();
+  if (trimmed === 'verscript update' || trimmed === 'update') {
+    mainWindow.webContents.send('run-output', `[Studio Runner] Running official VerScript updater...\n`);
+    const installRes = await installVerScriptInternal();
+    return installRes;
+  }
+  if (trimmed.startsWith('verscript help') || trimmed.startsWith('help')) {
+    const topic = trimmed.replace(/^verscript\s+help\s*/i, '').replace(/^help\s*/i, '').trim();
+    const execArgs = topic ? ['help', topic] : ['help'];
+    return new Promise((resolve) => {
+      mainWindow.webContents.send('run-output', `[Studio Runner] Executing: ${binaryInfo.path} ${execArgs.join(' ')}\n`);
+      const proc = spawn(binaryInfo.path, execArgs, { windowsHide: true });
+      proc.stdout.on('data', d => mainWindow.webContents.send('run-output', d.toString()));
+      proc.stderr.on('data', d => mainWindow.webContents.send('run-output', d.toString()));
+      proc.on('close', c => resolve({ success: c === 0, exitCode: c }));
+      proc.on('error', err => {
+        mainWindow.webContents.send('run-output', `\n[Execution Error: ${err.message}]\n`);
+        resolve({ success: false, error: err.message });
+      });
+    });
+  }
+
   const tempDir = app.getPath('temp');
   const tempFile = path.join(tempDir, `vrs_run_${Date.now()}.vrs`);
   fs.writeFileSync(tempFile, code, 'utf-8');
