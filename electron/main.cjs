@@ -312,12 +312,14 @@ ipcMain.handle('kill-run', async () => {
 // File System IPC
 ipcMain.handle('open-file', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-    title: 'Open VerScript Source File',
+    title: 'Open VerScript Source, Library or Header File',
     filters: [
-      { name: 'VerScript Files', extensions: ['vrs', 'verscript', 'h.vrs'] },
-      { name: 'All Files', extensions: ['*'] }
+      { name: 'All VerScript Files (*.vrs, *.lib.vrs, *.h.vrs)', extensions: ['vrs', 'lib.vrs', 'h.vrs', 'verscript'] },
+      { name: 'VerScript Library Modules (*.lib.vrs)', extensions: ['vrs', 'lib.vrs'] },
+      { name: 'VerScript Header Contracts (*.h.vrs)', extensions: ['vrs', 'h.vrs'] },
+      { name: 'All Files (*.*)', extensions: ['*'] }
     ],
-    properties: ['openFile']
+    properties: ['openFile', 'multiSelections']
   });
 
   if (canceled || filePaths.length === 0) return null;
@@ -328,12 +330,13 @@ ipcMain.handle('open-file', async () => {
 
 ipcMain.handle('save-file-as', async (event, { content, defaultName }) => {
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-    title: 'Save VerScript File',
+    title: 'Save VerScript File (*.vrs, *.lib.vrs, *.h.vrs)',
     defaultPath: defaultName || 'script.vrs',
     filters: [
-      { name: 'VerScript Source', extensions: ['vrs'] },
-      { name: 'VerScript Header', extensions: ['h.vrs'] },
-      { name: 'All Files', extensions: ['*'] }
+      { name: 'VerScript Source (*.vrs)', extensions: ['vrs'] },
+      { name: 'VerScript Library Module (*.lib.vrs)', extensions: ['lib.vrs', 'vrs'] },
+      { name: 'VerScript Header Contract (*.h.vrs)', extensions: ['h.vrs', 'vrs'] },
+      { name: 'All Files (*.*)', extensions: ['*'] }
     ]
   });
 

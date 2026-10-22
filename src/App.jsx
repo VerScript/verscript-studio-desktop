@@ -4,6 +4,7 @@ import { registerVerScriptLanguage } from './verscript-language.js';
 import AnsiView, { stripAnsi } from './AnsiView.jsx';
 import { SNIPPETS_LIBRARY } from './snippetsData.js';
 import VerScriptLogo from './VerScriptLogo.jsx';
+import HelpModal from './HelpModal.jsx';
 
 const TEMPLATES = {
   starter: `! VerScript Studio - Standalone Offline Desktop IDE
@@ -24,7 +25,7 @@ prompt userName ?default="Explorer"
 display "Greetings, " + userName + "! Welcome to VerScript Studio." ?color=cyan
 `,
 
-  header: `! Interface Contract Specification Header
+  header: `! Interface Contract Specification Header (.h.vrs)
 pragma once
 pragma strict
 
@@ -38,6 +39,22 @@ struct StorageConfig:
     retries: num
     timeoutMs: num
     useCache: bool
+`,
+
+  lib: `! VerScript Standalone Standard Library (.lib.vrs)
+pragma once
+pragma strict
+
+library CoreUtils:
+    export func clamp(val: num, minVal: num, maxVal: num): num:
+        if val < minVal:
+            reply minVal
+        if val > maxVal:
+            reply maxVal
+        reply val
+
+    export func lerp(a: num, b: num, t: num): num:
+        reply a + (b - a) * t
 `,
 
   oop: `! Object-Oriented Class Example in VerScript
@@ -107,6 +124,12 @@ export default function App() {
     return localStorage.getItem('vrs_studio_theme') || 'cyber';
   });
 
+  const [layoutMode, setLayoutMode] = useState(() => {
+    return localStorage.getItem('vrs_studio_layout') || 'stacked';
+  });
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(null);
+
   const [symbols, setSymbols] = useState([]);
   const [sidebarTab, setSidebarTab] = useState('symbols'); // 'symbols' | 'files'
   const [fontSize, setFontSize] = useState(14);
@@ -159,8 +182,33 @@ export default function App() {
       localStorage.setItem('vrs_studio_tabs', JSON.stringify(tabs));
       localStorage.setItem('vrs_studio_active_tab', activeTabId);
       localStorage.setItem('vrs_studio_theme', theme);
+      localStorage.setItem('vrs_studio_layout', layoutMode);
     } catch (e) {}
-  }, [tabs, activeTabId, theme]);
+  }, [tabs, activeTabId, theme, layoutMode]);
+
+  // Check online release update availability
+  useEffect(() => {
+    const checkUpdates = async () => {
+      try {
+        const res = await fetch('https://api.github.com/repos/VerScript/verscript-studio-desktop/releases/latest');
+        if (res.ok) {
+          const data = await res.json();
+          const latestTag = data.tag_name || '';
+          const currentVersion = 'v1.3.0';
+          if (latestTag && latestTag !== currentVersion) {
+            setUpdateInfo({
+              tag: latestTag,
+              url: data.html_url || 'https://github.com/VerScript/verscript-studio-desktop/releases',
+              notes: data.name || latestTag
+            });
+          }
+        }
+      } catch (e) {
+        // Offline or rate-limited
+      }
+    };
+    checkUpdates();
+  }, []);
 
   // Initial System Check & Event Listeners
   useEffect(() => {
@@ -193,7 +241,7 @@ export default function App() {
     return () => clearInterval(onlineInterval);
   }, []);
 
-  // Global Keyboard Shortcuts (F5, Ctrl+S, Ctrl+N, Ctrl+K)
+  // Global Keyboard Shortcuts (F5, Ctrl+S, Ctrl+N, Ctrl+K, Ctrl+H)
   useEffect(() => {
     const handleKeyDown = (e) => {
       // F5 or Ctrl+Enter -> Run
@@ -216,6 +264,11 @@ export default function App() {
         e.preventDefault();
         if (dockTab === 'runner') setRunLogs('');
         if (dockTab === 'repl') setReplLogs('');
+      }
+      // Ctrl+H -> Help & Keyword Database
+      if (e.ctrlKey && e.key === 'h') {
+        e.preventDefault();
+        setIsHelpOpen(prev => !prev);
       }
     };
 
@@ -289,8 +342,9 @@ export default function App() {
 
   const handleNewFile = (templateKey = 'starter') => {
     const newId = String(Date.now());
-    const isHdr = templateKey === 'header';
-    const filename = isHdr ? `contract_${tabs.length + 1}.h.vrs` : `script_${tabs.length + 1}.vrs`;
+    let filename = `script_${tabs.length + 1}.vrs`;
+    if (templateKey === 'header') filename = `contract_${tabs.length + 1}.h.vrs`;
+    if (templateKey === 'lib') filename = `module_${tabs.length + 1}.lib.vrs`;
     const newTab = {
       id: newId,
       title: filename,
@@ -300,6 +354,26 @@ export default function App() {
     };
     setTabs(prev => [...prev, newTab]);
     setActiveTabId(newId);
+  };
+
+  const handleFormatCode = () => {
+    if (!activeTab || !activeTab.content) return;
+    const lines = activeTab.content.split('\n');
+    let indentLevel = 0;
+    const formatted = lines.map(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return '';
+      // Dedent if closing keyword
+      if (trimmed.startsWith('reply ') || trimmed.startsWith('return ') || trimmed.startsWith('end')) {
+        indentLevel = Math.max(0, indentLevel - 1);
+      }
+      const indented = '    '.repeat(indentLevel) + trimmed;
+      if (trimmed.endsWith(':')) {
+        indentLevel += 1;
+      }
+      return indented;
+    }).join('\n');
+    updateContent(formatted);
   };
 
   const handleOpenFile = async () => {
@@ -504,6 +578,29 @@ export default function App() {
 
   return (
     <div className={`studio-container theme-${theme}`}>
+      {/* Update Notification Banner */}
+      {updateInfo && (
+        <div className="update-banner">
+          <span>🚀 <strong>New Version Available:</strong> VerScript Studio {updateInfo.tag} is out!</span>
+          <a 
+            href={updateInfo.url} 
+            target="_blank" 
+            rel="noreferrer" 
+            className="btn btn-primary" 
+            style={{ padding: '3px 10px', fontSize: 11, marginLeft: 12, textDecoration: 'none' }}
+          >
+            Download {updateInfo.tag}
+          </a>
+          <button 
+            className="btn btn-secondary" 
+            style={{ padding: '2px 8px', fontSize: 10, marginLeft: 8 }} 
+            onClick={() => setUpdateInfo(null)}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* 1. Header Toolbar */}
       <header className="studio-header">
         <div className="brand-section">
@@ -536,8 +633,9 @@ export default function App() {
               defaultValue=""
             >
               <option value="" disabled>Templates ▾</option>
-              <option value="starter">Basic Script</option>
+              <option value="starter">Basic Script (.vrs)</option>
               <option value="header">Header Contract (.h.vrs)</option>
+              <option value="lib">Library Module (.lib.vrs)</option>
               <option value="oop">Object-Oriented Class</option>
               <option value="matrix">Matrix & Linear Algebra</option>
             </select>
@@ -548,9 +646,32 @@ export default function App() {
             Save {activeTab?.modified ? '•' : ''}
           </button>
 
+          {/* Formatter */}
+          <button className="btn btn-secondary" onClick={handleFormatCode} title="Auto-Format Script Indentation">
+            📐 Format
+          </button>
+
           {/* Snippets Palette Toggle */}
           <button className="btn btn-secondary" onClick={() => setIsSnippetsOpen(!isSnippetsOpen)}>
             🧩 Snippets
+          </button>
+
+          {/* Help & Keyword Search */}
+          <button 
+            className={`btn btn-secondary ${isHelpOpen ? 'active' : ''}`}
+            onClick={() => setIsHelpOpen(!isHelpOpen)}
+            title="Search VerScript Keywords, Standard Libraries & Errors (Ctrl+H)"
+          >
+            📖 Help
+          </button>
+
+          {/* Split-Pane Layout Mode */}
+          <button 
+            className={`btn btn-secondary ${layoutMode === 'side-by-side' ? 'active' : ''}`}
+            onClick={() => setLayoutMode(m => m === 'stacked' ? 'side-by-side' : 'stacked')}
+            title="Toggle Split-Pane Side-by-Side vs Stacked Layout"
+          >
+            {layoutMode === 'side-by-side' ? '⊟ Stacked' : '◫ Split Layout'}
           </button>
           
           <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />
@@ -565,6 +686,8 @@ export default function App() {
             <option value="cyber">🌌 Cyber Dark</option>
             <option value="monokai">🎨 Monokai Pro</option>
             <option value="matrix">🟩 Matrix Emerald</option>
+            <option value="obsidian">🖤 Obsidian Glow</option>
+            <option value="solar">☀️ Solar Aurora</option>
           </select>
 
           {/* Font Zoom Controls */}
@@ -652,7 +775,7 @@ export default function App() {
         </aside>
 
         {/* Center: Main Deck */}
-        <main className="main-deck">
+        <main className={`main-deck ${layoutMode}`}>
           {/* Top Deck: Tabs + Monaco Editor */}
           <section className="editor-deck">
             <div className="tabs-bar">
@@ -988,6 +1111,13 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Help & Keyword Search Knowledge Base Modal */}
+      <HelpModal 
+        isOpen={isHelpOpen} 
+        onClose={() => setIsHelpOpen(false)} 
+        onInsertCode={handleInsertSnippet} 
+      />
     </div>
   );
 }
