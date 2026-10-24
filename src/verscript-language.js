@@ -48,18 +48,23 @@ export function registerVerScriptLanguage(monaco) {
       'header', 'include', 'pragma', 'export', 'struct', 'enum', 'config',
       'DataType', 'extends', 'it', 'num', 'bool', 'str', 'arr', 'entity', 'set',
       'def', 'func', 'method', 'inbound', 'outbound', 'outscope', 'reply',
-      'class', 'lib', 'library', 'load', 'import', 'static', 'dynamic', 'const',
+      'class', 'lib', 'library', 'pkg', 'load', 'import', 'static', 'dynamic', 'const',
       'public', 'private', 'temp', 'inst', 'del', 'on', 'when', 'emit',
-      'async', 'sync', 'guard', 'chan', 'send', 'recv', 'match', 'with',
-      'is', 'even', 'odd', 'isEven', 'isOdd', 'and', 'or', 'not', 'xor', 'shl', 'shr',
-      'null', 'inf', 'nan', 'typeof', 'as'
+      'async', 'sync', 'guard', 'chan', 'send', 'recv', 'match', 'with', 'case', 'in', 'yield',
+      'is', 'even', 'odd', 'isEven', 'isOdd', 'and', 'or', 'not', 'nand', 'nor', 'xor', 'xnor', 'xand',
+      'shl', 'shr', 'null', 'inf', 'infinity', 'nan', 'typeof', 'as', 'extern', 'unpack', 'construct',
+      'terminal', 'close', 'flush', 'focus', 'title', 'split',
+      'render', 'screen', 'world', 'draw', 'spawn', 'camera', 'light', 'scene',
+      'rect', 'circle', 'line', 'box', 'sphere', 'fill', 'stroke', 'pixel', 'frame',
+      'complex', 'real', 'imag', 'conj'
     ],
 
     mathFunctions: [
-      'sqrt', 'rt', 'min', 'max', 'clamp', 'sign', 'sgn', 'divrem',
+      'sqrt', 'rt', 'min', 'max', 'clamp', 'sign', 'sgn', 'divrem', 'divRem',
       'gcd', 'hcf', 'lcm', 'floor', 'ceil', 'round', 'sin', 'cos', 'tan',
-      'hypot', 'degToRad', 'radToDeg', 'sinDeg', 'cosDeg', 'ln', 'log', 'log2', 'exp', 'lerp',
-      'PI', 'TAU', 'PHI', 'E', 'INF'
+      'hypot', 'degToRad', 'radToDeg', 'sinDeg', 'cosDeg', 'sindeg', 'cosdeg', 'degtorad', 'radtodeg',
+      'ln', 'log', 'log2', 'exp', 'lerp',
+      'PI', 'TAU', 'PHI', 'E', 'INF', 'pi', 'tau', 'phi', 'inf', 'infinity'
     ],
 
     standardLibraries: [
@@ -243,9 +248,35 @@ export function registerVerScriptLanguage(monaco) {
         { label: 'and', insertText: 'and ', detail: 'Logical AND operator' },
         { label: 'or', insertText: 'or ', detail: 'Logical OR operator' },
         { label: 'not', insertText: 'not ', detail: 'Logical NOT operator' },
+        { label: 'nand', insertText: 'nand ', detail: 'Negated logical AND gate' },
+        { label: 'nor', insertText: 'nor ', detail: 'Negated logical OR gate' },
         { label: 'xor', insertText: 'xor ', detail: 'Bitwise / Logical XOR operator' },
+        { label: 'xnor', insertText: 'xnor ', detail: 'Logical equivalence operator' },
+        { label: 'xand', insertText: 'xand ', detail: 'Strict logical cross conjunction' },
         { label: 'shl', insertText: 'shl ', detail: 'Bitwise shift left' },
-        { label: 'shr', insertText: 'shr ', detail: 'Bitwise shift right' }
+        { label: 'shr', insertText: 'shr ', detail: 'Bitwise shift right' },
+        { label: 'extern', insertText: 'extern "${1:kernel32.dll}" ${2:function_name}()', isSnippet: true, detail: 'Dynamic Win32 / Native FFI binding' },
+        { label: 'unpack', insertText: 'unpack [${1:a}, ${2:b}] : ${3:collection}', isSnippet: true, detail: 'Structured destructuring assignment' },
+        { label: 'yield', insertText: 'yield ${1:value}', isSnippet: true, detail: 'Yield generator value' },
+        { label: 'case', insertText: 'case ${1:pattern}: ${0}', isSnippet: true, detail: 'Pattern match case branch' },
+        { label: 'in', insertText: 'in ', detail: 'Collection membership and range loop iterator' },
+        { label: 'terminal', insertText: 'terminal.${1|clear,title,flush,focus|}()', isSnippet: true, detail: 'Terminal subsystem controller' },
+        { label: 'flush', insertText: 'flush()', detail: 'Flush I/O output stream' },
+        { label: 'focus', insertText: 'focus("${1:pane}")', isSnippet: true, detail: 'Set focus to terminal or window pane' },
+        { label: 'render', insertText: 'render(${1:scene}, ${2:camera})', isSnippet: true, detail: 'Trigger 2D/3D graphics render pass' },
+        { label: 'screen', insertText: 'screen(${1:800}, ${2:600}, "${3:App}")', isSnippet: true, detail: 'Graphics screen canvas descriptor' },
+        { label: 'world', insertText: 'world([0, ${1:-9.8}, 0])', isSnippet: true, detail: '3D spatial physics world' },
+        { label: 'draw', insertText: 'draw ${1|rect(10, 10, 50, 50),circle(50, 50, 25),line(0, 0, 100, 100)|} ?fill=#${2:00FFCC}', isSnippet: true, detail: 'Immediate-mode 2D drawing' },
+        { label: 'spawn', insertText: 'spawn ${1:Entity} at [${2:0}, ${3:0}, ${4:0}]', isSnippet: true, detail: 'Instantiate physical entity into scene' },
+        { label: 'camera', insertText: 'camera(${1:60}, ${2:16/9}, ${3:0.1}, ${4:1000})', isSnippet: true, detail: 'Virtual viewport camera controller' },
+        { label: 'light', insertText: 'light("${1|ambient,sun,point|}", #${2:FFFFFF}, ${3:1.0})', isSnippet: true, detail: 'Scene illumination source' },
+        { label: 'scene', insertText: 'scene()', detail: 'Scene graph container' },
+        { label: 'complex', insertText: 'complex(${1:real}, ${2:imag})', isSnippet: true, detail: 'Complex number constructor ($a + bi$)' },
+        { label: 'real', insertText: 'real(${1:z})', isSnippet: true, detail: 'Extract real component from complex number' },
+        { label: 'imag', insertText: 'imag(${1:z})', isSnippet: true, detail: 'Extract imaginary component from complex number' },
+        { label: 'conj', insertText: 'conj(${1:z})', isSnippet: true, detail: 'Compute complex conjugate' },
+        { label: 'lerp', insertText: 'lerp(${1:a}, ${2:b}, ${3:t})', isSnippet: true, detail: 'Linear interpolation between a and b' },
+        { label: 'clamp', insertText: 'clamp(${1:val}, ${2:min}, ${3:max})', isSnippet: true, detail: 'Clamp value within range' }
       ];
 
       const attributes = [
